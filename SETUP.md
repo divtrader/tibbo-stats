@@ -30,3 +30,11 @@ Open it from the home screen any time: it loads the latest numbers straight from
 "+ since yesterday" figures and the trend line start the day after your first visit (the phone keeps a small history).
 
 **Preview:** add `#demo` to the address to see the layout with labelled sample numbers.
+
+## Who's watching (countries, watch time, sources)
+The "Who's watching" card reads YouTube Analytics (read-only) after a one-time **Sign in with Google**.
+Set up on 23 Nov 2026 in the same Google Cloud project: YouTube Analytics API switched on, a Google sign-in
+screen "Tibbo Stats" in Testing mode with the channel owner as the only test user, and a web sign-in
+client locked to https://divtrader.github.io (its public ID is CLIENT_ID in index.html; the client secret is not used).
+When Google asks, pick the **Tibbo** channel. Google may ask again about once an hour; tap the button again.
+Analytics numbers arrive about 2 days after the views.
