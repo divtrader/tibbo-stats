@@ -1,6 +1,6 @@
 # Tibbo Stats: set-up
 
-**Done:** a key is built into the page (Google Cloud project "Tibbo Stats" on the main account, key "Tibbo Stats website", locked to https://divtrader.github.io/* and YouTube Data API v3). Just open the page and add it to your home screen (step 3). The steps below are only needed to make a replacement key.
+**Done:** a key is built into the page (Google Cloud project "Tibbo Stats" on the main account, key "Tibbo Stats website", locked to https://divtrader.github.io/* and YouTube Data API v3). There is no Settings section; the page always uses the built-in key and @tibboshow. Just open it and add it to your home screen (step 3). If the key ever stops working, a new one is made with step 1 and swapped into SITE_KEY in index.html.
 
 
 Tibbo Stats reads your channel live from YouTube's official API every time you open it. It's free:

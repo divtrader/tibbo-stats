@@ -71,9 +71,6 @@
   @media (max-width: 420px) { .vid { grid-template-columns: 84px minmax(0, 1fr) auto; } .vid img { width: 84px; } }
   .note { border-radius: 14px; padding: 12px 14px; background: var(--sun); color: var(--ink); }
   .note.err { background: color-mix(in srgb, var(--bad) 18%, var(--card)); }
-  form.settings { display: grid; gap: 10px; }
-  label { font-weight: 700; font-size: .9rem; }
-  input { width: 100%; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); }
   .help { font-size: .85rem; color: var(--muted); margin: 0; }
   a { color: var(--sea); }
   .skel { color: transparent !important; background: var(--line); border-radius: 8px; }
@@ -95,7 +92,6 @@
       <span class="updated" id="updated">Not loaded yet</span>
       <span>
         <button type="button" id="refresh">Refresh</button>
-        <button type="button" class="ghost" id="openSettings">Settings</button>
       </span>
     </div>
   </div>
@@ -134,21 +130,6 @@
     <div class="vids" id="vids"><p class="muted">Videos appear here once they are live on the channel.</p></div>
   </section>
 
-  <section class="card" id="settingsCard" hidden aria-labelledby="setTitle">
-    <h2 id="setTitle">Settings</h2>
-    <form class="settings" id="settingsForm">
-      <div>
-        <label for="apiKey">YouTube API key</label>
-        <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Built in: leave empty">
-        <p class="help">Tibbo Stats already has its own key built in. Only fill this in to use a different key.</p>
-      </div>
-      <div>
-        <label for="handle">Channel</label>
-        <input id="handle" type="text" autocomplete="off" spellcheck="false" value="@tibboshow">
-      </div>
-      <div><button type="submit">Save and load</button></div>
-    </form>
-  </section>
 </main>
 </div>
 
@@ -164,15 +145,15 @@
   const day = (d) => new Date(d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
   // Built-in key for this site only. Google Cloud locks it to https://divtrader.github.io/* and to the YouTube
-  // Data API v3 (read-only public data), so it is safe in page code. A key saved in Settings still overrides it.
+  // Data API v3 (read-only public data), so it is safe in page code.
   const SITE_KEY = "AIzaSyAVwjRdKT02047b0BL86z069r1x7t9Q9l0";
-  function settings() { return { key: store.get("tibbo.key", "") || SITE_KEY, handle: store.get("tibbo.handle", "@tibboshow") }; }
+  function settings() { return { key: SITE_KEY, handle: "@tibboshow" }; }
 
   function showError(msg) { const e = $("error"); e.className = "note err"; e.textContent = msg; e.hidden = !msg; }
 
   function explain(err) {
     const r = (err && err.reason) || "";
-    if (r === "keyInvalid" || r === "badRequest") return "That API key doesn't work. Open Settings and paste the key again.";
+    if (r === "keyInvalid" || r === "badRequest") return "The built-in YouTube key stopped working. Ask Claude to make a new one.";
     if (r === "accessNotConfigured") return "The YouTube Data API isn't switched on for this key yet. In Google Cloud, open APIs & Services, choose Library, and enable \"YouTube Data API v3\".";
     if (r === "forbidden" || r === "ipRefererBlocked") return "YouTube refused this key from this website. Check the key's website restriction includes this page's address.";
     if (r === "quotaExceeded") return "Today's free YouTube allowance is used up. It resets at midnight Pacific time.";
@@ -195,7 +176,7 @@
     // #demo: clearly labelled sample numbers, to see the layout before a key is added. Saves nothing.
     showError("");
     const e = $("error"); e.className = "note"; e.hidden = false;
-    e.textContent = "Sample numbers, for a preview only. Add your API key in Settings to see the real channel.";
+    e.textContent = "Sample numbers, for a preview only. Remove #demo from the address to see the real channel.";
     const ago = (d) => new Date(Date.now() - d * 86400000).toISOString();
     const vid = (id, title, d, v) => ({ id, snippet: { title, publishedAt: ago(d), thumbnails: { medium: { url: "icon-512.png" } } }, statistics: { viewCount: String(v) } });
     const vids = [vid("a", "Josshi's Little Red Boat | Tibbo", 0.4, 310), vid("b", "The Lost Little Star | Tibbo Episode 1", 1.2, 1840), vid("c", "Meet Tibbo & Friends", 1.2, 960)];
@@ -206,7 +187,6 @@
   async function load() {
     if (location.hash === "#demo") { demo(); return; }
     const { key, handle } = settings();
-    if (!key) { showError(""); openSettings(true); $("updated").textContent = "Add your API key in Settings to start"; return; }
     $("refresh").disabled = true;
     $("updated").innerHTML = '<span class="spin">⟳</span> Loading from YouTube…';
     try {
@@ -323,21 +303,7 @@
       `<text x="${W - m.r}" y="${H - 4}" text-anchor="end" fill="${muted}" font-size="11">${day(t1)}</text>`;
   }
 
-  function openSettings(force) {
-    const card = $("settingsCard");
-    card.hidden = force ? false : !card.hidden;
-    if (!card.hidden) { $("apiKey").value = store.get("tibbo.key", ""); $("handle").value = settings().handle; card.scrollIntoView({ behavior: "smooth" }); }
-  }
-
   $("refresh").addEventListener("click", load);
-  $("openSettings").addEventListener("click", () => openSettings(false));
-  $("settingsForm").addEventListener("submit", (e) => {
-    e.preventDefault();
-    store.set("tibbo.key", $("apiKey").value.trim());
-    store.set("tibbo.handle", $("handle").value.trim() || "@tibboshow");
-    $("settingsCard").hidden = true;
-    load();
-  });
   window.addEventListener("resize", () => { if (location.hash !== "#demo") drawChart(store.get("tibbo.history", [])); });
   window.addEventListener("hashchange", load);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
