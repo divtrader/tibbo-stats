@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tibbo Stats</title>
+<meta name="description" content="Live YouTube views for the Tibbo channel.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tibbo Stats">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#8fd0e6">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;600;700&display=swap">
+<style>
+  /* Layout: one phone-first column; a sunny header band, three big numbers, a trend card, then every video. */
+  :root {
+    --sky: #8fd0e6; --sea: #2f8fa8; --sun: #ffe9a6; --scarf: #f6c23e; --coral: #e8796a;
+    --bg: #f4f9fb; --card: #ffffff; --ink: #1f3640; --muted: #5d7680; --line: #d7e7ee;
+    --good: #2f9e6e; --bad: #c4553f; --on-sea: #ffffff;
+    --display: "Baloo 2", "Arial Rounded MT Bold", system-ui, sans-serif;
+    --body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --sky: #1e4b5c; --sea: #7cc8de; --sun: #4a4330; --scarf: #f6c23e; --coral: #f09484;
+      --bg: #0f1d23; --card: #162a32; --ink: #e8f3f7; --muted: #9bb6c0; --line: #24414c;
+      --good: #5fd19c; --bad: #f08a74; --on-sea: #0f1d23; color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.45;
+         padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .wrap { max-width: 720px; margin: 0 auto;
+          padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  header.band { background: linear-gradient(180deg, var(--sky), var(--bg)); padding-top: calc(env(safe-area-inset-top, 0px) + 18px); padding-bottom: 8px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand img { width: 58px; height: 58px; border-radius: 15px; box-shadow: 0 3px 10px rgba(0,0,0,.12); }
+  .brand h1 { font-family: var(--display); font-weight: 800; font-size: 1.9rem; line-height: 1; margin: 0; }
+  .brand p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+  .updated { color: var(--muted); font-size: .85rem; }
+  button { font-family: var(--body); font-weight: 700; font-size: .95rem; border-radius: 999px; padding: 9px 18px; cursor: pointer;
+           border: 2px solid var(--sea); background: var(--sea); color: var(--on-sea); }
+  button.ghost { background: transparent; color: var(--sea); }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--scarf); outline-offset: 2px; }
+  main { display: grid; gap: 18px; padding-block: 14px 40px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 460px) { .tiles { grid-template-columns: 1fr 1fr; } .tiles .tile:first-child { grid-column: 1 / -1; } }
+  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; min-width: 0; }
+  .tile .lbl { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .tile .num { font-family: var(--display); font-weight: 800; font-size: 2.3rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .tile .delta { font-size: .85rem; font-weight: 700; color: var(--muted); }
+  .tile .delta.up { color: var(--good); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+  .card h2 { font-family: var(--display); font-weight: 600; font-size: 1.25rem; margin: 0 0 8px; }
+  .muted { color: var(--muted); }
+  #chart { width: 100%; height: 150px; display: block; }
+  .vids { display: grid; gap: 10px; }
+  .vid { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+  .vid img { width: 112px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--line); }
+  .vid .t { font-weight: 700; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .vid .d { font-size: .82rem; color: var(--muted); }
+  .vid .v { text-align: right; font-family: var(--display); font-weight: 800; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+  .vid .v small { display: block; font-family: var(--body); font-weight: 700; font-size: .75rem; color: var(--good); }
+  @media (max-width: 420px) { .vid { grid-template-columns: 84px minmax(0, 1fr) auto; } .vid img { width: 84px; } }
+  .note { border-radius: 14px; padding: 12px 14px; background: var(--sun); color: var(--ink); }
+  .note.err { background: color-mix(in srgb, var(--bad) 18%, var(--card)); }
+  form.settings { display: grid; gap: 10px; }
+  label { font-weight: 700; font-size: .9rem; }
+  input { width: 100%; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); }
+  .help { font-size: .85rem; color: var(--muted); margin: 0; }
+  a { color: var(--sea); }
+  .skel { color: transparent !important; background: var(--line); border-radius: 8px; }
+  @media (prefers-reduced-motion: no-preference) { .spin { animation: spin 1s linear infinite; display: inline-block; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header class="band">
+  <div class="wrap">
+    <div class="brand">
+      <img src="apple-touch-icon.png" alt="">
+      <div>
+        <h1>Tibbo Stats</h1>
+        <p id="channelName">@tibboshow on YouTube</p>
+      </div>
+    </div>
+    <div class="row">
+      <span class="updated" id="updated">Not loaded yet</span>
+      <span>
+        <button type="button" id="refresh">Refresh</button>
+        <button type="button" class="ghost" id="openSettings">Settings</button>
+      </span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+  <div class="note err" id="error" hidden></div>
+
+  <section class="tiles" aria-label="Channel totals">
+    <div class="tile">
+      <div class="lbl">Total views</div>
+      <div class="num" id="views">—</div>
+      <div class="delta" id="viewsDelta">&nbsp;</div>
+    </div>
+    <div class="tile">
+      <div class="lbl">Subscribers</div>
+      <div class="num" id="subs">—</div>
+      <div class="delta" id="subsDelta">&nbsp;</div>
+    </div>
+    <div class="tile">
+      <div class="lbl">Videos</div>
+      <div class="num" id="videoCount">—</div>
+      <div class="delta" id="latest">&nbsp;</div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="trendTitle">
+    <h2 id="trendTitle">Total views over time</h2>
+    <svg id="chart" role="img" aria-label="Total channel views over time"></svg>
+    <p class="help" id="trendHelp">The line grows a point each time you open Tibbo Stats on this phone.</p>
+  </section>
+
+  <section class="card" aria-labelledby="vidsTitle">
+    <h2 id="vidsTitle">Every video</h2>
+    <div class="vids" id="vids"><p class="muted">Videos appear here once they are live on the channel.</p></div>
+  </section>
+
+  <section class="card" id="settingsCard" hidden aria-labelledby="setTitle">
+    <h2 id="setTitle">Settings</h2>
+    <form class="settings" id="settingsForm">
+      <div>
+        <label for="apiKey">YouTube API key</label>
+        <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…">
+        <p class="help">Your key is saved on this phone only. It is never sent anywhere except to YouTube.</p>
+      </div>
+      <div>
+        <label for="handle">Channel</label>
+        <input id="handle" type="text" autocomplete="off" spellcheck="false" value="@tibboshow">
+      </div>
+      <div><button type="submit">Save and load</button></div>
+    </form>
+  </section>
+</main>
+</div>
+
+<script>
+(() => {
+  const API = "https://www.googleapis.com/youtube/v3/";
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+  };
+  const fmt = (n) => (n === null || n === undefined || isNaN(n) ? "—" : Number(n).toLocaleString("en-GB"));
+  const day = (d) => new Date(d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+  function settings() { return { key: store.get("tibbo.key", ""), handle: store.get("tibbo.handle", "@tibboshow") }; }
+
+  function showError(msg) { const e = $("error"); e.className = "note err"; e.textContent = msg; e.hidden = !msg; }
+
+  function explain(err) {
+    const r = (err && err.reason) || "";
+    if (r === "keyInvalid" || r === "badRequest") return "That API key doesn't work. Open Settings and paste the key again.";
+    if (r === "accessNotConfigured") return "The YouTube Data API isn't switched on for this key yet. In Google Cloud, open APIs & Services, choose Library, and enable \"YouTube Data API v3\".";
+    if (r === "forbidden" || r === "ipRefererBlocked") return "YouTube refused this key from this website. Check the key's website restriction includes this page's address.";
+    if (r === "quotaExceeded") return "Today's free YouTube allowance is used up. It resets at midnight Pacific time.";
+    return "YouTube couldn't be reached: " + ((err && err.message) || "please try again.");
+  }
+
+  async function yt(path, params) {
+    const u = new URL(API + path);
+    Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
+    const res = await fetch(u);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.error) {
+      const e = body.error || {};
+      throw { reason: (e.errors && e.errors[0] && e.errors[0].reason) || "", message: e.message || res.statusText };
+    }
+    return body;
+  }
+
+  function demo() {
+    // #demo: clearly labelled sample numbers, to see the layout before a key is added. Saves nothing.
+    showError("");
+    const e = $("error"); e.className = "note"; e.hidden = false;
+    e.textContent = "Sample numbers, for a preview only. Add your API key in Settings to see the real channel.";
+    const ago = (d) => new Date(Date.now() - d * 86400000).toISOString();
+    const vid = (id, title, d, v) => ({ id, snippet: { title, publishedAt: ago(d), thumbnails: { medium: { url: "icon-512.png" } } }, statistics: { viewCount: String(v) } });
+    const vids = [vid("a", "Josshi's Little Red Boat | Tibbo", 0.4, 310), vid("b", "The Lost Little Star | Tibbo Episode 1", 1.2, 1840), vid("c", "Meet Tibbo & Friends", 1.2, 960)];
+    const hist = [0, 0.3, 0.6, 0.9, 1.2].map((d, i) => ({ t: Date.now() - (1.2 - d) * 86400000, total: [0, 420, 1300, 2400, 3110][i], subs: 0, per: {} }));
+    renderWith({ viewCount: "3110", subscriberCount: "57", videoCount: "3" }, vids, hist, hist[2]);
+  }
+
+  async function load() {
+    if (location.hash === "#demo") { demo(); return; }
+    const { key, handle } = settings();
+    if (!key) { showError(""); openSettings(true); $("updated").textContent = "Add your API key in Settings to start"; return; }
+    $("refresh").disabled = true;
+    $("updated").innerHTML = '<span class="spin">⟳</span> Loading from YouTube…';
+    try {
+      const ch = await yt("channels", { part: "snippet,statistics,contentDetails", forHandle: handle.replace(/^@/, ""), key });
+      if (!ch.items || !ch.items.length) throw { reason: "", message: `no channel called ${handle} was found.` };
+      const c = ch.items[0];
+      $("channelName").textContent = `${c.snippet.title} · ${handle}`;
+      const st = c.statistics;
+      const uploads = c.contentDetails.relatedPlaylists.uploads;
+      let ids = [], token = "";
+      do {
+        const pl = await yt("playlistItems", { part: "contentDetails", playlistId: uploads, maxResults: 50, pageToken: token, key });
+        ids = ids.concat((pl.items || []).map((i) => i.contentDetails.videoId));
+        token = pl.nextPageToken || "";
+      } while (token && ids.length < 200);
+      let vids = [];
+      for (let i = 0; i < ids.length; i += 50) {
+        const vr = await yt("videos", { part: "snippet,statistics", id: ids.slice(i, i + 50).join(","), key });
+        vids = vids.concat(vr.items || []);
+      }
+      render(st, vids);
+      showError("");
+    } catch (err) {
+      showError(explain(err));
+      $("updated").textContent = "Couldn't update";
+    } finally {
+      $("refresh").disabled = false;
+    }
+  }
+
+  function render(st, vids) {
+    const now = Date.now();
+    const total = Number(st.viewCount);
+    const subs = st.hiddenSubscriberCount ? null : Number(st.subscriberCount);
+    const hist = store.get("tibbo.history", []);
+    const per = Object.fromEntries(vids.map((v) => [v.id, Number(v.statistics.viewCount || 0)]));
+    const last = hist[hist.length - 1];
+    if (!last || now - last.t > 30 * 60 * 1000 || last.total !== total) hist.push({ t: now, total, subs, per });
+    while (hist.length > 400) hist.shift();
+    store.set("tibbo.history", hist);
+    // compare with the newest snapshot at least 20 hours old ("since yesterday")
+    const dayAgo = [...hist].reverse().find((h) => now - h.t >= 20 * 3600 * 1000);
+    renderWith(st, vids, hist, dayAgo);
+  }
+
+  function renderWith(st, vids, hist, dayAgo) {
+    const now = Date.now();
+    const total = Number(st.viewCount);
+    const subs = st.hiddenSubscriberCount ? null : Number(st.subscriberCount);
+    $("views").textContent = fmt(total);
+    $("subs").textContent = subs === null ? "Hidden" : fmt(subs);
+    $("videoCount").textContent = fmt(st.videoCount);
+    const vd = $("viewsDelta");
+    if (dayAgo) { const d = total - dayAgo.total; vd.textContent = (d >= 0 ? "+" : "") + fmt(d) + " since yesterday"; vd.className = "delta" + (d > 0 ? " up" : ""); }
+    else { vd.textContent = "Change shows from tomorrow"; vd.className = "delta"; }
+    const sd = $("subsDelta");
+    if (dayAgo && subs !== null && dayAgo.subs !== null && dayAgo.subs !== undefined) { const d = subs - dayAgo.subs; sd.textContent = (d >= 0 ? "+" : "") + fmt(d) + " since yesterday"; sd.className = "delta" + (d > 0 ? " up" : ""); }
+    else { sd.innerHTML = "&nbsp;"; }
+    vids.sort((a, b) => new Date(b.snippet.publishedAt) - new Date(a.snippet.publishedAt));
+    $("latest").textContent = vids.length ? "Latest " + day(vids[0].snippet.publishedAt) : "None yet";
+    const box = $("vids");
+    box.replaceChildren();
+    if (!vids.length) { const p = document.createElement("p"); p.className = "muted"; p.textContent = "Videos appear here once they are live on the channel."; box.appendChild(p); }
+    for (const v of vids) {
+      const row = document.createElement("a");
+      row.className = "vid"; row.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(v.id); row.target = "_blank"; row.rel = "noopener";
+      row.style.textDecoration = "none"; row.style.color = "inherit";
+      const img = document.createElement("img");
+      const th = v.snippet.thumbnails || {};
+      img.src = (th.medium || th.default || {}).url || ""; img.alt = ""; img.loading = "lazy";
+      const mid = document.createElement("div");
+      const t = document.createElement("div"); t.className = "t"; t.textContent = v.snippet.title;
+      const days = Math.max(1, (now - new Date(v.snippet.publishedAt)) / 86400000);
+      const views = Number(v.statistics.viewCount || 0);
+      const d = document.createElement("div"); d.className = "d"; d.textContent = "Out " + day(v.snippet.publishedAt) + " · " + fmt(Math.round(views / days)) + " a day";
+      mid.append(t, d);
+      const right = document.createElement("div"); right.className = "v"; right.textContent = fmt(views);
+      if (dayAgo && dayAgo.per && dayAgo.per[v.id] !== undefined) {
+        const s = document.createElement("small"); const g = views - dayAgo.per[v.id];
+        s.textContent = (g >= 0 ? "+" : "") + fmt(g); right.appendChild(s);
+      }
+      row.append(img, mid, right);
+      box.appendChild(row);
+    }
+    drawChart(hist);
+    $("updated").textContent = "Updated " + new Date(now).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function drawChart(hist) {
+    const svg = $("chart");
+    const W = svg.clientWidth || 600, H = 150, m = { t: 12, r: 12, b: 22, l: 46 };
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const css = getComputedStyle(document.documentElement);
+    const sea = css.getPropertyValue("--sea").trim(), line = css.getPropertyValue("--line").trim(), muted = css.getPropertyValue("--muted").trim();
+    if (hist.length < 2) {
+      svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="${muted}" font-size="14">The trend appears after your next visit.</text>`;
+      return;
+    }
+    const t0 = hist[0].t, t1 = hist[hist.length - 1].t || t0 + 1;
+    const max = Math.max(...hist.map((h) => h.total)) || 1, min = Math.min(...hist.map((h) => h.total));
+    const lo = Math.max(0, min - (max - min) * 0.1), hi = max + (max - min) * 0.1 + 1;
+    const X = (t) => m.l + (t - t0) / Math.max(1, t1 - t0) * (W - m.l - m.r);
+    const Y = (v) => H - m.b - (v - lo) / (hi - lo) * (H - m.t - m.b);
+    const pts = hist.map((h) => `${X(h.t).toFixed(1)},${Y(h.total).toFixed(1)}`).join(" ");
+    const short = (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(Math.round(n));
+    const ticks = [lo, (lo + hi) / 2, hi].map((v) => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${line}"/>` +
+      `<text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end" fill="${muted}" font-size="11">${short(v)}</text>`).join("");
+    const lastP = hist[hist.length - 1];
+    svg.innerHTML = ticks +
+      `<polyline points="${m.l},${H - m.b} ${pts} ${X(lastP.t)},${H - m.b}" fill="${sea}" opacity=".12"/>` +
+      `<polyline points="${pts}" fill="none" stroke="${sea}" stroke-width="2.5" stroke-linejoin="round"/>` +
+      `<circle cx="${X(lastP.t)}" cy="${Y(lastP.total)}" r="4.5" fill="${sea}"/>` +
+      `<text x="${m.l}" y="${H - 4}" fill="${muted}" font-size="11">${day(t0)}</text>` +
+      `<text x="${W - m.r}" y="${H - 4}" text-anchor="end" fill="${muted}" font-size="11">${day(t1)}</text>`;
+  }
+
+  function openSettings(force) {
+    const card = $("settingsCard");
+    card.hidden = force ? false : !card.hidden;
+    if (!card.hidden) { const s = settings(); $("apiKey").value = s.key; $("handle").value = s.handle; card.scrollIntoView({ behavior: "smooth" }); }
+  }
+
+  $("refresh").addEventListener("click", load);
+  $("openSettings").addEventListener("click", () => openSettings(false));
+  $("settingsForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    store.set("tibbo.key", $("apiKey").value.trim());
+    store.set("tibbo.handle", $("handle").value.trim() || "@tibboshow");
+    $("settingsCard").hidden = true;
+    load();
+  });
+  window.addEventListener("resize", () => { if (location.hash !== "#demo") drawChart(store.get("tibbo.history", [])); });
+  window.addEventListener("hashchange", load);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
+  load();
+})();
+</script>
+</body>
+</html>
