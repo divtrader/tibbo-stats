@@ -317,6 +317,10 @@
   }
 
   function render(st, vids) {
+    // YouTube updates the channel's total views a day or more late; the per-video counts are fresh.
+    // Use whichever is higher so the total and the chart move as soon as a video gets views.
+    const perSum = vids.reduce((n, v) => n + Number(v.statistics.viewCount || 0), 0);
+    st = Object.assign({}, st, { viewCount: String(Math.max(Number(st.viewCount || 0), perSum)) });
     const now = Date.now();
     const total = Number(st.viewCount);
     const subs = st.hiddenSubscriberCount ? null : Number(st.subscriberCount);
