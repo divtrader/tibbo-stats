@@ -139,8 +139,8 @@
     <form class="settings" id="settingsForm">
       <div>
         <label for="apiKey">YouTube API key</label>
-        <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…">
-        <p class="help">Your key is saved on this phone only. It is never sent anywhere except to YouTube.</p>
+        <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Built in: leave empty">
+        <p class="help">Tibbo Stats already has its own key built in. Only fill this in to use a different key.</p>
       </div>
       <div>
         <label for="handle">Channel</label>
@@ -163,7 +163,10 @@
   const fmt = (n) => (n === null || n === undefined || isNaN(n) ? "—" : Number(n).toLocaleString("en-GB"));
   const day = (d) => new Date(d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
-  function settings() { return { key: store.get("tibbo.key", ""), handle: store.get("tibbo.handle", "@tibboshow") }; }
+  // Built-in key for this site only. Google Cloud locks it to https://divtrader.github.io/* and to the YouTube
+  // Data API v3 (read-only public data), so it is safe in page code. A key saved in Settings still overrides it.
+  const SITE_KEY = "AIzaSyAVwjRdKT02047b0BL86z069r1x7t9Q9l0";
+  function settings() { return { key: store.get("tibbo.key", "") || SITE_KEY, handle: store.get("tibbo.handle", "@tibboshow") }; }
 
   function showError(msg) { const e = $("error"); e.className = "note err"; e.textContent = msg; e.hidden = !msg; }
 
@@ -323,7 +326,7 @@
   function openSettings(force) {
     const card = $("settingsCard");
     card.hidden = force ? false : !card.hidden;
-    if (!card.hidden) { const s = settings(); $("apiKey").value = s.key; $("handle").value = s.handle; card.scrollIntoView({ behavior: "smooth" }); }
+    if (!card.hidden) { $("apiKey").value = store.get("tibbo.key", ""); $("handle").value = settings().handle; card.scrollIntoView({ behavior: "smooth" }); }
   }
 
   $("refresh").addEventListener("click", load);
