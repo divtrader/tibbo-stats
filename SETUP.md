@@ -32,9 +32,12 @@ Open it from the home screen any time: it loads the latest numbers straight from
 **Preview:** add `#demo` to the address to see the layout with labelled sample numbers.
 
 ## Who's watching (countries, watch time, sources)
-The "Who's watching" card reads YouTube Analytics (read-only) after a one-time **Sign in with Google**.
-Set up on 23 Nov 2026 in the same Google Cloud project: YouTube Analytics API switched on, a Google sign-in
-screen "Tibbo Stats" in Testing mode with the channel owner as the only test user, and a web sign-in
-client locked to https://divtrader.github.io (its public ID is CLIENT_ID in index.html; the client secret is not used).
-When Google asks, pick the **Tibbo** channel. Google may ask again about once an hour; tap the button again.
-Analytics numbers arrive about 2 days after the views.
+Shown automatically, no sign-in. A GitHub Actions updater (.github/workflows/analytics.yml, every 3 hours, free,
+no Claude involved) runs scripts/update_analytics.py, which reads the Tibbo channel's YouTube Analytics (read-only)
+and saves the totals to analytics.json; the page reads that file.
+- Permission: given once on 23 Nov 2026 by the channel owner for the Tibbo brand channel (Google sign-in app
+  "Tibbo Stats", in production, desktop client "Tibbo Stats updater"). Keys live only in the repository secrets
+  YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN (and a private copy in ~/.config/tibbo-stats on the Mac).
+- Remove access any time at myaccount.google.com/permissions (pick the Tibbo channel).
+- Only channel totals are saved (countries, sources, devices, per-video watch %), never anything about a viewer.
+- YouTube adds analytics about 2-3 days after the views.

@@ -87,7 +87,6 @@
   .bar .track { grid-column: 1 / -1; height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
   .bar .fill { height: 100%; border-radius: 99px; background: var(--sea); }
   .bar.alt .fill { background: var(--scarf); }
-  .signin { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .skel { color: transparent !important; background: var(--line); border-radius: 8px; }
   @media (prefers-reduced-motion: no-preference) { .spin { animation: spin 1s linear infinite; display: inline-block; } }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -147,20 +146,12 @@
 
   <section class="card" aria-labelledby="deepTitle">
     <h2 id="deepTitle">Who's watching</h2>
-    <div id="deepOut">
-      <p class="help">Countries, watch time, how much of each episode kids watch, and how they find Tibbo. Sign in once with the Google account that owns the Tibbo channel. It can only read the numbers, never change anything.</p>
-      <div class="signin" style="margin-top:10px">
-        <button type="button" id="signin">Sign in with Google</button>
-        <span class="help">When Google asks, pick the <b>Tibbo</b> channel.</span>
-      </div>
-    </div>
-    <div class="deep" id="deep" hidden></div>
+    <div class="deep" id="deep"><p class="help">Loading…</p></div>
   </section>
 
 </main>
 </div>
 
-<script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 (() => {
   const API = "https://www.googleapis.com/youtube/v3/";
@@ -179,16 +170,8 @@
 
   let titles = {};
 
-  // ---- Who's watching: YouTube Analytics, read-only, signed in as the channel owner (Google sign-in, no server)
-  const CLIENT_ID = "113325148105-7fir1l7rus4bn2k5232ug8tofpt73jlq.apps.googleusercontent.com";
-  const SCOPE = "https://www.googleapis.com/auth/yt-analytics.readonly";
-  const START = "2026-11-01";             // the channel's first month
-  let tokenClient = null;
-  const session = {
-    get() { try { const t = JSON.parse(localStorage.getItem("tibbo.oauth") || "null"); return t && t.exp > Date.now() + 60000 ? t.token : null; } catch { return null; } },
-    set(token, secs) { try { localStorage.setItem("tibbo.oauth", JSON.stringify({ token, exp: Date.now() + secs * 1000 })); } catch {} },
-    clear() { try { localStorage.removeItem("tibbo.oauth"); } catch {} }
-  };
+  // ---- Who's watching: YouTube Analytics totals, fetched every 3 hours by a GitHub updater into analytics.json
+  // (read-only permission given once by the channel owner; no sign-in on this page).
   const SOURCES = { YT_SEARCH: "YouTube search", RELATED_VIDEO: "Suggested next to other videos", BROWSE: "YouTube home page",
     SUBSCRIBER: "Subscribers", PLAYLIST: "Playlists", YT_CHANNEL: "Tibbo's channel page", EXT_URL: "Links outside YouTube",
     NO_LINK_OTHER: "Typed in or unknown", NOTIFICATION: "Notifications", END_SCREEN: "End screens", SHORTS: "Shorts feed",
@@ -201,17 +184,6 @@
   const flag = (cc) => /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 0x1f1a5 + c.charCodeAt(0))) : "🌍";
   const mins = (m) => m >= 120 ? fmt(Math.round(m / 60)) + " h" : fmt(Math.round(m)) + " min";
   const secs = (s) => s >= 60 ? Math.floor(s / 60) + " min " + String(Math.round(s % 60)).padStart(2, "0") + " s" : Math.round(s) + " s";
-
-  async function analytics(token, params) {
-    const u = new URL("https://youtubeanalytics.googleapis.com/v2/reports");
-    const today = new Date().toISOString().slice(0, 10);
-    Object.entries({ ids: "channel==MINE", startDate: START, endDate: today, ...params }).forEach(([k, v]) => u.searchParams.set(k, v));
-    const res = await fetch(u, { headers: { Authorization: "Bearer " + token } });
-    const body = await res.json().catch(() => ({}));
-    if (res.status === 401) { session.clear(); throw { auth: true }; }
-    if (!res.ok || body.error) throw { message: (body.error && body.error.message) || res.statusText };
-    return body.rows || [];
-  }
 
   function bars(rows, label, alt) {
     const box = document.createElement("div"); box.className = "bars";
@@ -235,59 +207,40 @@
     return d;
   }
 
-  async function loadDeep() {
-    const token = session.get();
-    const deep = $("deep"), out = $("deepOut");
-    if (!token) { deep.hidden = true; out.hidden = false; return; }
-    out.hidden = true; deep.hidden = false;
-    deep.replaceChildren(Object.assign(document.createElement("p"), { className: "help", textContent: "Loading from YouTube Analytics…" }));
-    try {
-      const [tot, countries, sources, devices, products, perVid] = await Promise.all([
-        analytics(token, { metrics: "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage" }),
-        analytics(token, { dimensions: "country", metrics: "views", sort: "-views", maxResults: 10 }),
-        analytics(token, { dimensions: "insightTrafficSourceType", metrics: "views", sort: "-views" }),
-        analytics(token, { dimensions: "deviceType", metrics: "views", sort: "-views" }),
-        analytics(token, { dimensions: "youtubeProduct", metrics: "views", sort: "-views" }),
-        analytics(token, { dimensions: "video", metrics: "views,averageViewPercentage,averageViewDuration", sort: "-views", maxResults: 25 }),
-      ]);
-      const t = tot[0] || [0, 0, 0, 0];
+  async function loadDeep(sample) {
+    const deep = $("deep");
+    let a = sample;
+    if (!a) try {
+      const res = await fetch("analytics.json?t=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) throw new Error(res.statusText);
+      a = await res.json();
+    } catch {
+      deep.replaceChildren(Object.assign(document.createElement("p"), { className: "help", textContent: "Couldn't load the viewer stats just now. Tap Refresh to try again." }));
+      return;
+    }
+    const t = a.totals || [0, 0, 0, 0];
+    const updated = new Date(a.updated).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+    const kids = [];
+    if (!t[0]) {
+      kids.push(Object.assign(document.createElement("p"), { className: "note",
+        textContent: "Countries, watch time and the rest appear here by themselves about 2–3 days after the first views. YouTube adds them late; nothing to do." }));
+    } else {
       const mini = document.createElement("div"); mini.className = "mini";
       for (const [b, l] of [[mins(t[1]), "watched in total"], [secs(t[2]), "average watch"], [Math.round(t[3]) + "%", "of an episode, on average"]]) {
         const d = document.createElement("div"); const bb = document.createElement("b"); bb.textContent = b;
         const sp = document.createElement("span"); sp.textContent = l; d.append(bb, sp); mini.appendChild(d);
       }
-      deep.replaceChildren(
-        mini,
-        block("Countries", bars(countries.map(([cc, v]) => [flag(cc) + " " + ((countryNames && countryNames.of(cc)) || cc), v]), "countries")),
-        block("How much of each video kids watch", bars(perVid.map(([id, v, pct, dur]) => [titles[id] || id, pct, Math.round(pct) + "% · " + secs(dur)]), "videos", true),
+      kids.push(mini,
+        block("Countries", bars((a.countries || []).map(([cc, v]) => [flag(cc) + " " + ((countryNames && countryNames.of(cc)) || cc), v]), "countries")),
+        block("How much of each video kids watch", bars((a.videos || []).map(([id, v, pct, dur]) => [titles[id] || id, pct, Math.round(pct) + "% · " + secs(dur)]), "videos", true),
               "Higher is better: YouTube recommends videos that kids watch to the end."),
-        block("How viewers find Tibbo", bars(sources.map(([k, v]) => [SOURCES[k] || k, v]), "sources")),
-        block("YouTube or the YouTube Kids app", bars(products.map(([k, v]) => [PRODUCTS[k] || k, v]), "views")),
-        block("Watching on", bars(devices.map(([k, v]) => [DEVICES[k] || k, v]), "devices")),
-        Object.assign(document.createElement("p"), { className: "help", textContent: "YouTube adds these numbers about 2 days late, so new views show up here after the totals above." }),
-      );
-      const so = document.createElement("button"); so.type = "button"; so.className = "ghost"; so.textContent = "Sign out";
-      so.addEventListener("click", () => { try { google.accounts.oauth2.revoke(token, () => {}); } catch {} session.clear(); loadDeep(); });
-      deep.appendChild(so);
-    } catch (err) {
-      if (err && err.auth) { deep.hidden = true; out.hidden = false; return; }
-      deep.replaceChildren(Object.assign(document.createElement("p"), { className: "note err",
-        textContent: "YouTube Analytics couldn't be reached: " + ((err && err.message) || "please try again.") + " If it says the channel isn't found, sign out and pick the Tibbo channel." }));
-      const so = document.createElement("button"); so.type = "button"; so.className = "ghost"; so.textContent = "Sign out";
-      so.style.marginTop = "10px"; so.addEventListener("click", () => { session.clear(); loadDeep(); });
-      deep.appendChild(so);
+        block("How viewers find Tibbo", bars((a.sources || []).map(([k, v]) => [SOURCES[k] || k, v]), "sources")),
+        block("YouTube or the YouTube Kids app", bars((a.products || []).map(([k, v]) => [PRODUCTS[k] || k, v]), "views")),
+        block("Watching on", bars((a.devices || []).map(([k, v]) => [DEVICES[k] || k, v]), "devices")));
     }
-  }
-
-  function signIn() {
-    if (!window.google || !google.accounts || !google.accounts.oauth2) { showError("Google sign-in is still loading. Try again in a moment."); return; }
-    if (!tokenClient) {
-      tokenClient = google.accounts.oauth2.initTokenClient({ client_id: CLIENT_ID, scope: SCOPE, callback: (r) => {
-        if (r && r.access_token) { session.set(r.access_token, Number(r.expires_in || 3600)); loadDeep(); }
-        else showError("Sign-in didn't finish. Please try again.");
-      } });
-    }
-    tokenClient.requestAccessToken();
+    kids.push(Object.assign(document.createElement("p"), { className: "help",
+      textContent: "Updates by itself every 3 hours (last: " + updated + "). YouTube adds these numbers about 2 days after the views." }));
+    deep.replaceChildren(...kids);
   }
 
   function showError(msg) { const e = $("error"); e.className = "note err"; e.textContent = msg; e.hidden = !msg; }
@@ -323,6 +276,11 @@
     const vids = [vid("a", "Josshi's Little Red Boat | Tibbo", 0.4, 310), vid("b", "The Lost Little Star | Tibbo Episode 1", 1.2, 1840), vid("c", "Meet Tibbo & Friends", 1.2, 960)];
     const hist = [0, 0.3, 0.6, 0.9, 1.2].map((d, i) => ({ t: Date.now() - (1.2 - d) * 86400000, total: [0, 420, 1300, 2400, 3110][i], subs: 0, per: {} }));
     renderWith({ viewCount: "3110", subscriberCount: "57", videoCount: "3" }, vids, hist, hist[2]);
+    loadDeep({ updated: new Date().toISOString(), totals: [3110, 9240, 178, 66],
+      countries: [["GB", 1210], ["US", 860], ["AU", 420], ["IE", 210], ["ZA", 160], ["NZ", 90]],
+      videos: [["b", 1840, 71, 202], ["c", 960, 58, 46], ["a", 310, 64, 175]],
+      sources: [["RELATED_VIDEO", 1500], ["YT_SEARCH", 820], ["BROWSE", 500], ["PLAYLIST", 290]],
+      products: [["CORE", 2400], ["KIDS", 710]], devices: [["TV", 1400], ["MOBILE", 1100], ["TABLET", 610]] });
   }
 
   async function load() {
@@ -446,7 +404,6 @@
   }
 
   $("refresh").addEventListener("click", () => { load(); loadDeep(); });
-  $("signin").addEventListener("click", signIn);
   window.addEventListener("resize", () => { if (location.hash !== "#demo") drawChart(store.get("tibbo.history", [])); });
   window.addEventListener("hashchange", load);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { load(); if (location.hash !== "#demo") loadDeep(); } });
