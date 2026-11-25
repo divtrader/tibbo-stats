@@ -50,8 +50,8 @@
   button.ghost { background: transparent; color: var(--sea); }
   button:focus-visible, input:focus-visible { outline: 3px solid var(--scarf); outline-offset: 2px; }
   main { display: grid; gap: 18px; padding-block: 14px 40px; }
-  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-  @media (max-width: 460px) { .tiles { grid-template-columns: 1fr 1fr; } .tiles .tile:first-child { grid-column: 1 / -1; } }
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 700px) { .tiles { grid-template-columns: 1fr 1fr; } }
   .tile { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; min-width: 0; }
   .tile .lbl { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   .tile .num { font-family: var(--display); font-weight: 800; font-size: 2.3rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -125,6 +125,11 @@
       <div class="lbl">Subscribers</div>
       <div class="num" id="subs">—</div>
       <div class="delta" id="subsDelta">&nbsp;</div>
+    </div>
+    <div class="tile">
+      <div class="lbl">Likes</div>
+      <div class="num" id="likes">—</div>
+      <div class="delta" id="likesDelta">&nbsp;</div>
     </div>
     <div class="tile">
       <div class="lbl">Videos</div>
@@ -272,7 +277,7 @@
     const e = $("error"); e.className = "note"; e.hidden = false;
     e.textContent = "Sample numbers, for a preview only. Remove #demo from the address to see the real channel.";
     const ago = (d) => new Date(Date.now() - d * 86400000).toISOString();
-    const vid = (id, title, d, v) => ({ id, snippet: { title, publishedAt: ago(d), thumbnails: { medium: { url: "icon-512.png" } } }, statistics: { viewCount: String(v) } });
+    const vid = (id, title, d, v) => ({ id, snippet: { title, publishedAt: ago(d), thumbnails: { medium: { url: "icon-512.png" } } }, statistics: { viewCount: String(v), likeCount: String(Math.round(v / 40)) } });
     const vids = [vid("a", "Josshi's Little Red Boat | Tibbo", 0.4, 310), vid("b", "The Lost Little Star | Tibbo Episode 1", 1.2, 1840), vid("c", "Meet Tibbo & Friends", 1.2, 960)];
     const hist = [0, 0.3, 0.6, 0.9, 1.2].map((d, i) => ({ t: Date.now() - (1.2 - d) * 86400000, total: [0, 420, 1300, 2400, 3110][i], subs: 0, per: {} }));
     renderWith({ viewCount: "3110", subscriberCount: "57", videoCount: "3" }, vids, hist, hist[2]);
@@ -326,13 +331,20 @@
     const subs = st.hiddenSubscriberCount ? null : Number(st.subscriberCount);
     const hist = store.get("tibbo.history", []);
     const per = Object.fromEntries(vids.map((v) => [v.id, Number(v.statistics.viewCount || 0)]));
+    const likes = sumLikes(vids);
     const last = hist[hist.length - 1];
-    if (!last || now - last.t > 30 * 60 * 1000 || last.total !== total) hist.push({ t: now, total, subs, per });
+    if (!last || now - last.t > 30 * 60 * 1000 || last.total !== total || last.likes !== likes) hist.push({ t: now, total, subs, likes, per });
     while (hist.length > 400) hist.shift();
     store.set("tibbo.history", hist);
     // compare with the newest snapshot at least 20 hours old ("since yesterday")
     const dayAgo = [...hist].reverse().find((h) => now - h.t >= 20 * 3600 * 1000);
     renderWith(st, vids, hist, dayAgo);
+  }
+
+  // Likes: the sum of each video's public like count (YouTube gives no channel total). null when every video hides it.
+  function sumLikes(vids) {
+    const shown = vids.filter((v) => v.statistics.likeCount !== undefined);
+    return shown.length ? shown.reduce((n, v) => n + Number(v.statistics.likeCount || 0), 0) : null;
   }
 
   function renderWith(st, vids, hist, dayAgo) {
@@ -345,6 +357,12 @@
     const vd = $("viewsDelta");
     if (dayAgo) { const d = total - dayAgo.total; vd.textContent = (d >= 0 ? "+" : "") + fmt(d) + " since yesterday"; vd.className = "delta" + (d > 0 ? " up" : ""); }
     else { vd.textContent = "Change shows from tomorrow"; vd.className = "delta"; }
+    const likes = sumLikes(vids);
+    $("likes").textContent = likes === null ? "Hidden" : fmt(likes);
+    const ld = $("likesDelta");
+    if (dayAgo && likes !== null && typeof dayAgo.likes === "number") { const d = likes - dayAgo.likes; ld.textContent = (d >= 0 ? "+" : "") + fmt(d) + " since yesterday"; ld.className = "delta" + (d > 0 ? " up" : ""); }
+    else if (likes !== null) { ld.textContent = "Change shows from tomorrow"; ld.className = "delta"; }
+    else { ld.innerHTML = "&nbsp;"; }
     const sd = $("subsDelta");
     if (dayAgo && subs !== null && dayAgo.subs !== null && dayAgo.subs !== undefined) { const d = subs - dayAgo.subs; sd.textContent = (d >= 0 ? "+" : "") + fmt(d) + " since yesterday"; sd.className = "delta" + (d > 0 ? " up" : ""); }
     else { sd.innerHTML = "&nbsp;"; }
@@ -365,7 +383,9 @@
       const t = document.createElement("div"); t.className = "t"; t.textContent = v.snippet.title;
       const days = Math.max(1, (now - new Date(v.snippet.publishedAt)) / 86400000);
       const views = Number(v.statistics.viewCount || 0);
-      const d = document.createElement("div"); d.className = "d"; d.textContent = "Out " + day(v.snippet.publishedAt) + " · " + fmt(Math.round(views / days)) + " a day";
+      const lk = v.statistics.likeCount;
+      const lkText = lk === undefined ? "" : " · " + fmt(Number(lk)) + (Number(lk) === 1 ? " like" : " likes");
+      const d = document.createElement("div"); d.className = "d"; d.textContent = "Out " + day(v.snippet.publishedAt) + " · " + fmt(Math.round(views / days)) + " a day" + lkText;
       mid.append(t, d);
       const right = document.createElement("div"); right.className = "v"; right.textContent = fmt(views);
       if (dayAgo && dayAgo.per && dayAgo.per[v.id] !== undefined) {
