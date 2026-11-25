@@ -1,17 +1,60 @@
 {
- "updated": "2026-11-25T02:34+00:00",
+ "updated": "2026-11-25T23:40+00:00",
  "since": "2026-11-01",
  "totals": [
-  0,
-  0,
-  0,
-  0
+  17,
+  11,
+  41,
+  53.65
  ],
- "countries": [],
- "sources": [],
- "devices": [],
- "products": [],
- "videos": [],
+ "countries": [
+  [
+   "ZA",
+   10
+  ]
+ ],
+ "sources": [
+  [
+   "NO_LINK_OTHER",
+   13
+  ],
+  [
+   "RELATED_VIDEO",
+   3
+  ],
+  [
+   "EXT_URL",
+   1
+  ]
+ ],
+ "devices": [
+  [
+   "MOBILE",
+   14
+  ],
+  [
+   "DESKTOP",
+   2
+  ],
+  [
+   "TABLET",
+   1
+  ]
+ ],
+ "products": [
+  [
+   "CORE",
+   17
+  ]
+ ],
+ "videos": [
+  [
+   "AU-q4xcWxjY",
+   17,
+   53.65,
+   41
+  ]
+ ],
  "daily": [
   [
    "2026-11-01",
@@ -100,6 +143,10 @@
   [
    "2026-11-22",
    0
+  ],
+  [
+   "2026-11-23",
+   17
   ]
  ]
 }
