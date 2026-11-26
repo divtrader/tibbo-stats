@@ -149,6 +149,11 @@
     <div class="vids" id="vids"><p class="muted">Videos appear here once they are live on the channel.</p></div>
   </section>
 
+  <section class="card" aria-labelledby="siteTitle">
+    <h2 id="siteTitle">Website visits <span class="muted" style="font-size:.85rem">tibboshow.com</span></h2>
+    <div class="deep" id="site"><p class="help">Loading…</p></div>
+  </section>
+
   <section class="card" aria-labelledby="deepTitle">
     <h2 id="deepTitle">Who's watching</h2>
     <div class="deep" id="deep"><p class="help">Loading…</p></div>
@@ -246,6 +251,28 @@
     kids.push(Object.assign(document.createElement("p"), { className: "help",
       textContent: "Updates by itself every 3 hours (last: " + updated + "). YouTube adds these numbers about 2 days after the views." }));
     deep.replaceChildren(...kids);
+    showSite(a.website);
+  }
+
+  // ---- Website visits: Cloudflare's own counts for tibboshow.com (nothing runs on the website), saved into
+  // analytics.json by the same 3-hourly updater
+  function showSite(w) {
+    const box = $("site");
+    if (!w) {
+      box.replaceChildren(Object.assign(document.createElement("p"), { className: "note",
+        textContent: "Website visits appear here once the Cloudflare key is added to the updater (one-time set-up)." }));
+      return;
+    }
+    const mini = document.createElement("div"); mini.className = "mini";
+    for (const [b, l] of [[fmt(w.visitors), "visitors, last 30 days"], [fmt(w.pageviews), "pages looked at"]]) {
+      const d = document.createElement("div"); const bb = document.createElement("b"); bb.textContent = b;
+      const sp = document.createElement("span"); sp.textContent = l; d.append(bb, sp); mini.appendChild(d);
+    }
+    const days = (w.daily || []).slice(-14).reverse().map(([d, v]) => [day(d), v]);
+    box.replaceChildren(mini,
+      block("Visitors each day", bars(days, "visits yet")),
+      block("Countries", bars((w.countries || []).map(([cc, v]) => [flag(cc) + " " + ((countryNames && countryNames.of(cc)) || cc), v]), "countries"),
+            "Counted by Cloudflare; the website itself has no cookies or tracking."));
   }
 
   function showError(msg) { const e = $("error"); e.className = "note err"; e.textContent = msg; e.hidden = !msg; }
